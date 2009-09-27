@@ -130,6 +130,14 @@ function! RubyDebugger.step() dict
 endfunction
 
 
+" Finish
+function! RubyDebugger.finish() dict
+  call g:RubyDebugger.send_command("finish")
+  call s:clear_current_state()
+  call g:RubyDebugger.logger.put("Step out")
+endfunction
+
+
 " Continue
 function! RubyDebugger.continue() dict
   call g:RubyDebugger.send_command("cont")
