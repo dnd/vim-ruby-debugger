@@ -67,6 +67,12 @@ endfunction
 let RubyDebugger.send_command = function("<SID>send_message_to_debugger")
 
 
+"Eval the passed in expression
+function! RubyDebugger.eval(exp) dict
+  call g:RubyDebugger.send_command("eval " . a:exp)
+endfunction
+
+
 " Open variables window
 function! RubyDebugger.open_variables() dict
   call s:variables_window.toggle()

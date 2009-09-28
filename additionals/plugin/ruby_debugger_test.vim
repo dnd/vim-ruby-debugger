@@ -14,6 +14,7 @@ command! -nargs=? -complete=file Rdebugger :call g:RubyDebugger.start(<q-args>)
 command! -nargs=0 RdbStop :call g:RubyDebugger.stop() 
 command! -nargs=1 RdbCommand :call g:RubyDebugger.send_command(<q-args>) 
 command! -nargs=0 RdbTest :call g:RubyDebugger.run_test() 
+command! -nargs=1 RdbEval :call g:RubyDebugger.eval(<q-args>) 
 
 if exists("g:ruby_debugger_loaded")
   finish
@@ -351,6 +352,12 @@ endfunction
 " We set function this way, because we want have possibility to mock it by
 " other function in tests
 let RubyDebugger.send_command = function("<SID>send_message_to_debugger")
+
+
+"Eval the passed in expression
+function! RubyDebugger.eval(exp) dict
+  call g:RubyDebugger.send_command("eval " . a:exp)
+endfunction
 
 
 " Open variables window
