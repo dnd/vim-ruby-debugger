@@ -103,7 +103,6 @@ function! s:send_message_to_debugger(message)
           \ . "ensure; "
           \ .   " a.close if a; "
           \ . "end; \""
-    call g:RubyDebugger.logger.put(script) 
     let output = system(script)
     if output =~ 'can not be opened'
       call g:RubyDebugger.logger.put("Can't send a message to rdebug - port is not opened") 
