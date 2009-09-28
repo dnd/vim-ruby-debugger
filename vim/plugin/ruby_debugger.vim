@@ -155,22 +155,26 @@ function! s:send_message_to_debugger(message)
   if g:ruby_debugger_fast_sender
     call system(s:runtime_dir . "/bin/socket " . s:hostname . " " . s:debugger_port . " '" . a:message . "'")
   else
-    let script =  "ruby -e \"require 'socket'; "
-    let script .= "attempts = 0; "
-    let script .= "begin; "
-    let script .=   "a = TCPSocket.open('" . s:hostname . "', " . s:debugger_port . "); "
-    let script .=   "a.puts('" . a:message . "'); "
-    let script .=   "a.close; "
-    let script .= "rescue Errno::ECONNREFUSED; "
-    let script .=   "attempts += 1; "
-    let script .=   "if attempts < 400; "
-    let script .=     "sleep 0.05; "
-    let script .=     "retry; "
-    let script .=   "else; "
-    let script .=     "puts('" . s:hostname . ":" . s:debugger_port . " can not be opened'); "
-    let script .=     "exit; "
-    let script .=   "end; "
-    let script .= "end; \""
+    let script =  "ruby -e \""
+          \ . "require 'socket'; " 
+          \ . "attempts = 0; "
+          \ . " a = nil; "
+          \ . "begin; "
+          \ .   " a = TCPSocket.open('" . s:hostname . "', " . s:debugger_port . "); "
+          \ .   " a.puts('" . a:message . "'); "
+          \ . "rescue Errno::ECONNREFUSED; "
+          \ .   "attempts += 1; "
+          \ .   "if attempts < 400; "
+          \ .     "sleep 0.05; "
+          \ .     "retry; "
+          \ .   "else; "
+          \ .     "puts('" . s:hostname . ":" . s:debugger_port . " can not be opened'); "
+          \ .     "exit; "
+          \ .   "end; "
+          \ . "ensure; "
+          \ .   " a.close if a; "
+          \ . "end; \""
+    call g:RubyDebugger.logger.put(script) 
     let output = system(script)
     if output =~ 'can not be opened'
       call g:RubyDebugger.logger.put("Can't send a message to rdebug - port is not opened") 
