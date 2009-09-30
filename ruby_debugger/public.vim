@@ -69,9 +69,15 @@ let RubyDebugger.send_command = function("<SID>send_message_to_debugger")
 
 "Eval the passed in expression
 function! RubyDebugger.eval(exp) dict
-  call g:RubyDebugger.send_command("eval " . a:exp)
+  let quoted = g:RubyDebugger.quotify(a:exp)
+  call g:RubyDebugger.send_command("eval " . quoted)
 endfunction
 
+function! RubyDebugger.quotify(exp) dict
+  let quoted = substitute(a:exp, '\\"', '\\\\"', 'g')
+  let quoted = substitute(quoted, '\"', '\\"', 'g')
+  return quoted
+endfunction
 
 " Open variables window
 function! RubyDebugger.open_variables() dict

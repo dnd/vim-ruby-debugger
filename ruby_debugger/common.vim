@@ -90,7 +90,7 @@ function! s:send_message_to_debugger(message)
           \ . " a = nil; "
           \ . "begin; "
           \ .   " a = TCPSocket.open('" . s:hostname . "', " . s:debugger_port . "); "
-          \ .   " a.puts('" . a:message . "'); "
+          \ .   " a.puts(%q[" . substitute(substitute(a:message, '[', '\[', 'g'), ']', '\]', 'g') . "]);"
           \ . "rescue Errno::ECONNREFUSED; "
           \ .   "attempts += 1; "
           \ .   "if attempts < 400; "
