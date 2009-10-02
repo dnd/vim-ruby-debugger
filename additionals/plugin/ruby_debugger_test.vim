@@ -9,12 +9,17 @@ map <Leader>f  :call g:RubyDebugger.finish()<CR>
 map <Leader>c  :call g:RubyDebugger.continue()<CR>
 map <Leader>e  :call g:RubyDebugger.exit()<CR>
 map <Leader>d  :call g:RubyDebugger.remove_breakpoints()<CR>
+map <Leader>w  :call g:RubyDebugger.open_watches()<CR>
 
 command! -nargs=? -complete=file Rdebugger :call g:RubyDebugger.start(<q-args>) 
 command! -nargs=0 RdbStop :call g:RubyDebugger.stop() 
 command! -nargs=1 RdbCommand :call g:RubyDebugger.send_command(<q-args>) 
 command! -nargs=0 RdbTest :call g:RubyDebugger.run_test() 
 command! -nargs=1 RdbEval :call g:RubyDebugger.eval(<q-args>) 
+command! -nargs=1 RdbWatch :call g:RubyDebugger.add_watch(<q-args>) 
+command! -nargs=0 RdbRemoveWatches :call g:RubyDebugger.remove_watches() 
+command! -nargs=1 RdbRemoveWatch :call g:RubyDebugger.remove_watch(<q-args>) 
+
 
 if exists("g:ruby_debugger_loaded")
   finish
@@ -161,7 +166,7 @@ function! s:send_message_to_debugger(message)
           \ . " a = nil; "
           \ . "begin; "
           \ .   " a = TCPSocket.open('" . s:hostname . "', " . s:debugger_port . "); "
-          \ .   " a.puts('" . a:message . "'); "
+          \ .   " a.puts(%q[" . substitute(substitute(a:message, '[', '\[', 'g'), ']', '\]', 'g') . "]);"
           \ . "rescue Errno::ECONNREFUSED; "
           \ .   "attempts += 1; "
           \ .   "if attempts < 400; "
@@ -194,6 +199,7 @@ endfunction
 function! s:clear_current_state()
   call s:unplace_sign_of_current_line()
   let g:RubyDebugger.variables = {}
+  call g:RubyDebugger.clear_watch_evals()
   " Clear variables window (just show our empty variables Dict)
   if s:variables_window.is_open()
     call s:variables_window.open()
@@ -290,7 +296,7 @@ endfunction
 
 " *** Public interface (start)
 
-let RubyDebugger = { 'commands': {}, 'variables': {}, 'settings': {}, 'breakpoints': [] }
+let RubyDebugger = { 'commands': {}, 'variables': {}, 'settings': {}, 'breakpoints': [], 'watches': [] }
 
 
 " Run debugger server. It takes one optional argument with path to debugged
@@ -318,6 +324,12 @@ endfunction
 function! RubyDebugger.stop() dict
   if has_key(g:RubyDebugger, 'server')
     call g:RubyDebugger.server.stop()
+  endif
+endfunction
+
+function! RubyDebugger.is_running() dict
+  if has_key(g:RubyDebugger, 'server')
+    return g:RubyDebugger.server.is_running()
   endif
 endfunction
 
@@ -359,14 +371,68 @@ let RubyDebugger.send_command = function("<SID>send_message_to_debugger")
 
 "Eval the passed in expression
 function! RubyDebugger.eval(exp) dict
-  call g:RubyDebugger.send_command("eval " . a:exp)
+  let quoted = g:RubyDebugger.quotify(a:exp)
+  call g:RubyDebugger.send_command("eval " . quoted)
 endfunction
 
+function! RubyDebugger.quotify(exp) dict
+  let quoted = substitute(a:exp, '\\"', '\\\\"', 'g')
+  let quoted = substitute(quoted, '\"', '\\"', 'g')
+  return quoted
+endfunction
 
 " Open variables window
 function! RubyDebugger.open_variables() dict
   call s:variables_window.toggle()
   call g:RubyDebugger.logger.put("Opened variables window")
+endfunction
+
+
+" Open watches window
+function! RubyDebugger.open_watches() dict
+  call s:watches_window.toggle()
+  call g:RubyDebugger.logger.put("Opened watches window")
+endfunction
+
+
+"Add an expression to the watch list
+function RubyDebugger.add_watch(exp)
+  let watch = s:Watch.new(a:exp)
+  call add(g:RubyDebugger.watches, watch)
+  call g:RubyDebugger.logger.put("Added watch at index " . (watch.id - 1) . ": " . watch.expr)
+  echo "Added watch " . watch.id
+  if s:watches_window.is_open()
+    call s:watches_window.open()
+  endif
+endfunction
+
+"Remove watch at the given index
+function RubyDebugger.remove_watch(id)
+  let watch = filter(g:RubyDebugger.watches, "v:val.id != " . a:id)
+  if !empty(watch)
+    echo "Removed watch: " . watch[0].expr
+    call g:RubyDebugger.logger.put("Removed watch at id " . a:id . ": " . watch[0].expr)
+    if s:watches_window.is_open()
+      call s:watches_window.open()
+    endif
+  else
+    echo "No watch: " . a:id
+  endif
+endfunction
+
+
+"Remove all watches
+function RubyDebugger.remove_watches()
+  let g:RubyDebugger.watches = []
+  call g:RubyDebugger.watches_window.clear()
+  call g:RubyDebugger.logger.put("Removed all watches")
+endfunction
+
+" Clear all watch evals
+function RubyDebugger.clear_watch_evals()
+  for watch in g:RubyDebugger.watches
+    let watch.evaluated = 0
+  endfor
 endfunction
 
 
@@ -482,6 +548,9 @@ function! RubyDebugger.commands.jump_to_breakpoint(cmd) dict
     exe ":sign place " . s:current_line_sign_id . " line=" . attrs.line . " name=current_line file=" . attrs.file
   endif
 
+  if s:watches_window.is_open()
+    call s:watches_window.open()
+  endif
   call g:RubyDebugger.send_command('var local')
 endfunction
 
@@ -576,7 +645,13 @@ function! RubyDebugger.commands.eval(cmd)
   " rdebug-ide-gem doesn't escape attributes of tag properly, so we should not
   " use usual attribute extractor here...
   let match = matchlist(a:cmd, "<eval expression=\"\\(.\\{-}\\)\" value=\"\\(.*\\)\" \\/>")
-  echo match[1] . " = " . match[2] . "\n"
+  
+  " If watches are returned, only update watches. Don't output to console
+  if match(match[1], "^vrd_watches") > -1
+    call s:watches_window.set_watches_eval(match[2])
+  else
+    echo s:unescape_html(match[1]) . " = " . match[2] . "\n"
+  endif
 endfunction
 
 
@@ -946,6 +1021,114 @@ endfunction
 
 
 " *** WindowBreakpoints class (end)
+
+
+
+" *** WindowWatches class (start)
+
+" Inherits WindowWatches from Window
+let s:WindowWatches = copy(s:Window)
+
+let s:WindowWatches.watches_eval = []
+
+" ** Public methods
+
+function! s:WindowWatches.bind_mappings()
+  nnoremap <buffer> d :call <SID>window_watches_delete_node()<cr>
+endfunction
+
+
+" Returns string that contains all watches (for Window.display())
+function! s:WindowWatches.render() dict
+  let watches = ""
+  let watches .= self.title . "\n"
+  if !g:RubyDebugger.is_running()
+    let watches .= "<Server not running. Watches not current.>\n"
+  elseif !empty(filter(copy(g:RubyDebugger.watches), "v:val.evaluated == 0"))
+    call s:send_watches_for_eval()
+  endif
+  let id = 1
+  for watch in g:RubyDebugger.watches
+    let watches .= watch.render()
+    let id += 1
+  endfor
+  return watches
+endfunction
+
+" Sends the watches for evaluation
+function s:send_watches_for_eval()
+  call g:RubyDebugger.logger.put("Watches to evaluate: " . len(g:RubyDebugger.watches))
+  let l:to_eval = "vrd_watches = ["
+  for watch in g:RubyDebugger.watches
+    call g:RubyDebugger.logger.put("Eval watch: " . watch.expr)
+    let l:to_eval .= "\"" . substitute(watch.expr, '\"', '\\"', "g") . "\", "
+  endfor
+  let l:to_eval = strpart(l:to_eval, 0, strlen(l:to_eval) - 2)
+  let l:to_eval .= "].inject([]) {|r, e| r << "
+        \. "begin\\n"
+        \. "x = eval(e).inspect\\n"
+        \. "rescue => e\\ne.to_s end}"
+        "if x.nil? then '|vrd_nil|'\\n"
+        "elsif x.is_a?(Numeric) or x.is_a?(String) then x\\n"
+        "elsif x.is_a?(TrueClass) or x.is_a?(FalseClass) or x.is_a?(Symbol) then 
+        "\"|vrd_#{x.inspect}|\"\\n"
+        "else x.inspect\\n"
+        "end\\n"
+  call g:RubyDebugger.logger.put("Sending watches for evaluation: " . l:to_eval)
+  call g:RubyDebugger.eval(l:to_eval)
+endfunction
+
+
+" Sets the eval results received from the server
+function! s:WindowWatches.set_watches_eval(raw) dict
+  call self._log("Received watches eval: " . a:raw)
+  let results = eval(a:raw)
+  let id = 0
+  for result in results
+    let g:RubyDebugger.watches[id].value = result
+    let g:RubyDebugger.watches[id].evaluated = 1
+    let id += 1
+  endfor
+  call s:watches_window.open()
+endfunction
+
+
+" Delete watch under cursor
+function! s:window_watches_delete_node()
+  let id = s:window_watches_get_selected_id()
+  call g:RubyDebugger.logger.put("Preparing to delete watch id: " . id)
+  if id > 0
+    call g:RubyDebugger.remove_watch(id)
+  endif
+endfunction
+
+" Gets the selected watch
+function! s:window_watches_get_selected_id()
+  let line = getline(".") 
+  let match = matchlist(line, '^\(\d\+\)') 
+  return get(match, 1)
+endfunction
+
+
+" Add syntax highlighting
+function! s:WindowWatches.setup_syntax_highlighting() dict
+    execute "syn match rdebugTitle #" . self.title . "#"
+
+    syn match rdebugId "^\d\+\s" contained nextgroup=rdebugDebuggerId
+    syn match rdebugDebuggerId "\d*\s" contained nextgroup=rdebugFile
+    syn match rdebugFile ".*:" contained nextgroup=rdebugLine
+    syn match rdebugLine "\d\+" contained
+
+    syn match rdebugWrapper "^\d\+.*" contains=rdebugId transparent
+
+    hi def link rdebugId Directory
+    hi def link rdebugDebuggerId Type
+    hi def link rdebugFile Normal
+    hi def link rdebugLine Special
+endfunction
+
+
+" *** WindowWatches class (end)
 
 
 
@@ -1395,6 +1578,36 @@ endfunction
 
 " *** Breakpoint class (end)
 
+
+let s:Watch = {}
+let s:watch_counter = 0
+
+" ** Public methods
+
+" Constructor of new watch. 
+function! s:Watch.new(expr)
+  let var = copy(self)
+  let var.expr = a:expr
+  let var.value = ""
+  let var.evaluated = 0
+  let s:watch_counter += 1
+  let var.id = s:watch_counter
+  return var
+endfunction
+
+
+" Sets the value for the watch expression
+function! s:Watch.set_value(val) dict
+  let self.value = a:val
+  let self.evaluated = 1
+endfunction
+
+" Renders the watch
+function! s:Watch.render() dict
+  let val = self.evaluated ? self.value : "<NOT EVALUATED>"
+  return self.id . " " . self.expr . " = " . val . "\n"
+endfunction
+
 " *** Server class (start)
 
 let s:Server = {}
@@ -1539,6 +1752,7 @@ endif
 " Creating windows
 let s:variables_window = s:WindowVariables.new("variables", "Variables_Window")
 let s:breakpoints_window = s:WindowBreakpoints.new("breakpoints", "Breakpoints_Window")
+let s:watches_window = s:WindowWatches.new("watches", "Watches_Window")
 
 " Init logger. The plugin logs all its actions. If you have some troubles,
 " this file can help
@@ -1546,6 +1760,7 @@ let s:logger_file = s:runtime_dir . '/tmp/ruby_debugger_log'
 let RubyDebugger.logger = s:Logger.new(s:logger_file)
 let s:variables_window.logger = RubyDebugger.logger
 let s:breakpoints_window.logger = RubyDebugger.logger
+let s:watches_window.logger = RubyDebugger.logger
 
 
 " *** Creating instances (end)

@@ -96,6 +96,8 @@ It will kill any listeners of ports 39767 and 39768 and run rdebug-ide and
    * <Leader>f - step out
    * <Leader>c - continue
    * <Leader>d - remove all breakpoints
+   * <Leader>w - open/close window with watches. You can delete a watch by 
+                 pressing 'd' on it.
 
 ==============================================================================
 DETAILS					*ruby-debugger-details*
@@ -112,6 +114,7 @@ DETAILS					*ruby-debugger-details*
 	map <Leader>c  :call g:RubyDebugger.continue()<CR>
 	map <Leader>e  :call g:RubyDebugger.exit()<CR>
 	map <Leader>d  :call g:RubyDebugger.remove_breakpoints()<CR>
+        map <Leader>w : call g:RubyDebugger.open_watches()<CR>
 >
 2. Standard output and errors (STDOUT and STDERR) of running script is 
 redirected to ~/.vim/tmp/ruby_debugger_output file (only for POSIX 
@@ -135,18 +138,24 @@ If your script receives arguments, quote it into single quotes: >
 6. To run some rdebug command, use :RdbCommand. E.g.: >
         :RdbCommand where
 
-7. To stop running server, you can use :RdbStop command: >
+7. To add a watch, use :RdbWatch. E.g.: >
+	:RdbWatch some_var
+To remove a watch, use :RdbRemoveWatch, and specify the watch id. E.g.: >
+	:RdbRemoveWatch 3
+To remove all watches, use :RdbRemoveWatches.
+
+8. To stop running server, you can use :RdbStop command: >
         :RdbStop
 
-8. For communicating with the rdebug the plugin uses temp file:
+9. For communicating with the rdebug the plugin uses temp file:
    ~/.vim/tmp/ruby_debugger. Rdebug writes some response to this file, "kicks"
    the plugin remotely calling RubyDebugger.receive_command() by Vim's
    client-server functionality and the plugin make actions. For this reason,
    you need Vim compiled with +clientserver.
 
-9. The plugin logs all its actions to ~/.vim/tmp/ruby_debugger_log.
+10. The plugin logs all its actions to ~/.vim/tmp/ruby_debugger_log.
 
-10. You also can run Unit tests for the plugin. For this, copy to 
+11. You also can run Unit tests for the plugin. For this, copy to 
 ~/.vim/plugin/ ruby_debugger_test.vim instead of ruby_debugger.vim (from
    additionals/plugin directory). It has the same functionality, but with unit 
    tests at end of the file. To run unit tests, change current directory to 

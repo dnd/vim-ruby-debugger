@@ -1,6 +1,6 @@
 " *** Public interface (start)
 
-let RubyDebugger = { 'commands': {}, 'variables': {}, 'settings': {}, 'breakpoints': [] }
+let RubyDebugger = { 'commands': {}, 'variables': {}, 'settings': {}, 'breakpoints': [], 'watches': [] }
 
 
 " Run debugger server. It takes one optional argument with path to debugged
@@ -28,6 +28,12 @@ endfunction
 function! RubyDebugger.stop() dict
   if has_key(g:RubyDebugger, 'server')
     call g:RubyDebugger.server.stop()
+  endif
+endfunction
+
+function! RubyDebugger.is_running() dict
+  if has_key(g:RubyDebugger, 'server')
+    return g:RubyDebugger.server.is_running()
   endif
 endfunction
 
@@ -83,6 +89,54 @@ endfunction
 function! RubyDebugger.open_variables() dict
   call s:variables_window.toggle()
   call g:RubyDebugger.logger.put("Opened variables window")
+endfunction
+
+
+" Open watches window
+function! RubyDebugger.open_watches() dict
+  call s:watches_window.toggle()
+  call g:RubyDebugger.logger.put("Opened watches window")
+endfunction
+
+
+"Add an expression to the watch list
+function RubyDebugger.add_watch(exp)
+  let watch = s:Watch.new(a:exp)
+  call add(g:RubyDebugger.watches, watch)
+  call g:RubyDebugger.logger.put("Added watch at index " . (watch.id - 1) . ": " . watch.expr)
+  echo "Added watch " . watch.id
+  if s:watches_window.is_open()
+    call s:watches_window.open()
+  endif
+endfunction
+
+"Remove watch at the given index
+function RubyDebugger.remove_watch(id)
+  let watch = filter(g:RubyDebugger.watches, "v:val.id != " . a:id)
+  if !empty(watch)
+    echo "Removed watch: " . watch[0].expr
+    call g:RubyDebugger.logger.put("Removed watch at id " . a:id . ": " . watch[0].expr)
+    if s:watches_window.is_open()
+      call s:watches_window.open()
+    endif
+  else
+    echo "No watch: " . a:id
+  endif
+endfunction
+
+
+"Remove all watches
+function RubyDebugger.remove_watches()
+  let g:RubyDebugger.watches = []
+  call g:RubyDebugger.watches_window.clear()
+  call g:RubyDebugger.logger.put("Removed all watches")
+endfunction
+
+" Clear all watch evals
+function RubyDebugger.clear_watch_evals()
+  for watch in g:RubyDebugger.watches
+    let watch.evaluated = 0
+  endfor
 endfunction
 
 

@@ -123,6 +123,7 @@ endfunction
 function! s:clear_current_state()
   call s:unplace_sign_of_current_line()
   let g:RubyDebugger.variables = {}
+  call g:RubyDebugger.clear_watch_evals()
   " Clear variables window (just show our empty variables Dict)
   if s:variables_window.is_open()
     call s:variables_window.open()

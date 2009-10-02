@@ -9,12 +9,17 @@ map <Leader>f  :call g:RubyDebugger.finish()<CR>
 map <Leader>c  :call g:RubyDebugger.continue()<CR>
 map <Leader>e  :call g:RubyDebugger.exit()<CR>
 map <Leader>d  :call g:RubyDebugger.remove_breakpoints()<CR>
+map <Leader>w  :call g:RubyDebugger.open_watches()<CR>
 
 command! -nargs=? -complete=file Rdebugger :call g:RubyDebugger.start(<q-args>) 
 command! -nargs=0 RdbStop :call g:RubyDebugger.stop() 
 command! -nargs=1 RdbCommand :call g:RubyDebugger.send_command(<q-args>) 
 command! -nargs=0 RdbTest :call g:RubyDebugger.run_test() 
 command! -nargs=1 RdbEval :call g:RubyDebugger.eval(<q-args>) 
+command! -nargs=1 RdbWatch :call g:RubyDebugger.add_watch(<q-args>) 
+command! -nargs=0 RdbRemoveWatches :call g:RubyDebugger.remove_watches() 
+command! -nargs=1 RdbRemoveWatch :call g:RubyDebugger.remove_watch(<q-args>) 
+
 
 if exists("g:ruby_debugger_loaded")
   finish
