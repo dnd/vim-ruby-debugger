@@ -66,9 +66,12 @@ I've tested the plugin in Windows and Linux. All tests should be passed there.
 5.  After this, you can use commands:
 
          <Leader>b - set breakpoint at current line
+	 <Leader>m - open/close the breakpoints window. You can delete a breakpoint by pressing 'd' on the desired breakpoint.
          <Leader>v - open/close window with variables. You can expand/collapse variables by 'o' in normal mode or left-mouse double-click
+	 <Leader>w - open/close the watches window. You can delete a watch by pressing 'd' on the desired watch. 
          <Leader>n - step over
          <Leader>s - step into
+	 <Leader>f - step out
          <Leader>c - continue
 
 
