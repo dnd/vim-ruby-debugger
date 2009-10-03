@@ -76,7 +76,7 @@ let RubyDebugger.send_command = function("<SID>send_message_to_debugger")
 "Eval the passed in expression
 function! RubyDebugger.eval(exp) dict
   let quoted = g:RubyDebugger.quotify(a:exp)
-  call g:RubyDebugger.send_command("eval " . quoted)
+  call g:RubyDebugger.send_command("eval begin " . quoted . "\\nrescue => e\\ne.to_s end")
 endfunction
 
 function! RubyDebugger.quotify(exp) dict

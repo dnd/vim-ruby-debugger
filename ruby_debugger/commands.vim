@@ -110,12 +110,18 @@ function! RubyDebugger.commands.eval(cmd)
   " rdebug-ide-gem doesn't escape attributes of tag properly, so we should not
   " use usual attribute extractor here...
   let match = matchlist(a:cmd, "<eval expression=\"\\(.\\{-}\\)\" value=\"\\(.*\\)\" \\/>")
+  let wrapped_match = matchlist(match[1], "^begin \\(.*\\)\\\\nrescue =&gt; e\\\\ne\.to_s end$")
+
+  let expr = match[1]
+  if !empty(wrapped_match)
+    let expr = wrapped_match[1]
+  endif
   
   " If watches are returned, only update watches. Don't output to console
-  if match(match[1], "^vrd_watches") > -1
+  if match(expr, "^vrd_watches") > -1
     call s:watches_window.set_watches_eval(match[2])
   else
-    echo s:unescape_html(match[1]) . " = " . match[2] . "\n"
+    echo s:unescape_html(expr) . " = " . match[2] . "\n"
   endif
 endfunction
 
